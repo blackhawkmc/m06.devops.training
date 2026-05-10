@@ -29,6 +29,6 @@ Add the following blocks, they should depend on the first block (initialization)
 4. **Destroy**:
 
 - pull all files in the artifact store
-- delete the bucket with `terraform destoy -auto-approve`
+- delete the bucket with `terraform destroy -auto-approve`
 
 Examine the job logs to confirm terraform worked without errors.
