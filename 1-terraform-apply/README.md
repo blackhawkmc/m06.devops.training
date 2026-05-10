@@ -34,7 +34,6 @@ Pipeline:
 
 3. Use the bucket:
 
-- run `alias aws="aws --endpoint-url=http://devops.tomfern.com:31566"`
 - copy a file `aws s3 cp README.md s3://my-test-bucket/`
 - list files `aws s3 ls s3://my-test-bucket`
 - delete the file: `aws s3 rm s3://my-test-bucket/README.md`
@@ -42,6 +41,6 @@ Pipeline:
 4. **Destroy**:
 
 - pull all files in the artifact store
-- delete the bucket with `terraform destoy -auto-approve` (the bucket must be empty)
+- delete the bucket with `terraform destroy -auto-approve` (the bucket must be empty)
 
 Examine the job logs to confirm terraform worked without errors.
