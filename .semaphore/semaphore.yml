@@ -1,0 +1,68 @@
+version: v1.0
+name: Demo CI pipeline
+agent:
+  machine:
+    type: f1-standard-4
+    os_image: ubuntu2404
+global_job_config:
+  prologue:
+    commands:
+      - sem-version python 3.12
+      - checkout
+blocks:
+  - name: Install dependencies
+    dependencies: []
+    task:
+      jobs:
+        - name: pip install
+          commands:
+            - cache restore
+            - python -m pip install pytest requests flask coverage locust
+            - cache store
+  - name: Unit tests
+    dependencies:
+      - Install dependencies
+    task:
+      jobs:
+        - name: TDD and unit testing
+          commands:
+            - cache restore
+            - python -m pip install pytest requests flask coverage locust
+            - (cd 1-tdd && python -m pytest test_factorial.py -v)
+            - (cd 2-unit-testing && python -m pytest test_math_sum.py -v)
+  - name: Integration tests
+    dependencies:
+      - Install dependencies
+    task:
+      jobs:
+        - name: Integration and mocking
+          commands:
+            - cache restore
+            - python -m pip install pytest requests flask coverage locust
+            - (cd 3-integration-testing && python -m pytest test_integration.py -v)
+            - (cd 6-mocking && python -m pytest test_weather_service.py -v)
+            - (cd 10-database-testing && python -m pytest test_database.py -v)
+  - name: End-to-end tests
+    dependencies:
+      - Unit tests
+      - Integration tests
+    task:
+      jobs:
+        - name: E2E
+          commands:
+            - cache restore
+            - python -m pip install pytest requests flask coverage locust
+            - cd 4-e2e
+            - nohup python app.py > flask.log 2>&1 &
+            - |
+              for attempt in $(seq 1 10); do
+                if curl -fsS http://127.0.0.1:5000/health; then
+                  break
+                fi
+                if [ "$attempt" -eq 10 ]; then
+                  cat flask.log || true
+                  exit 1
+                fi
+                sleep 1
+              done
+            - python -m pytest test_e2e.py -v
