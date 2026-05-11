@@ -1,0 +1,137 @@
+version: v1.0
+name: Module 6 - Terraform Essentials
+
+agent:
+  machine:
+    type: f1-standard-4
+    os_image: ubuntu2404
+
+global_job_config:
+  secrets:
+    - name: localstack
+  prologue:
+    commands:
+      - checkout
+      - export TF_VAR_AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+      - export TF_VAR_AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+
+blocks:
+  # ─── Exercise 1: S3 Bucket ─────────────────────────────────────────────────
+
+  - name: "1 - Initialize"
+    dependencies: []
+    task:
+      jobs:
+        - name: Terraform Init
+          commands:
+            - cd 1-terraform-apply
+            - terraform init
+            - artifact push workflow .terraform
+            - artifact push workflow .terraform.lock.hcl
+
+  - name: "1 - Deploy S3"
+    dependencies: ["1 - Initialize"]
+    task:
+      jobs:
+        - name: Apply
+          commands:
+            - cd 1-terraform-apply
+            - artifact pull workflow .terraform
+            - artifact pull workflow .terraform.lock.hcl
+            - terraform validate
+            - terraform apply -auto-approve
+            - artifact push workflow terraform.tfstate --destination s3-terraform.tfstate
+
+  - name: "1 - Use Bucket"
+    dependencies: ["1 - Deploy S3"]
+    task:
+      jobs:
+        - name: S3 Operations
+          commands:
+            - cd 1-terraform-apply
+            - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate
+            - aws --endpoint-url=http://devops.tomfern.com:31566 s3 cp README.md s3://fbaba-test-bucket/
+            - aws --endpoint-url=http://devops.tomfern.com:31566 s3 ls s3://fbaba-test-bucket
+            - aws --endpoint-url=http://devops.tomfern.com:31566 s3 rm s3://fbaba-test-bucket/README.md
+
+  - name: "1 - Destroy S3"
+    dependencies: ["1 - Use Bucket"]
+    task:
+      jobs:
+        - name: Destroy
+          commands:
+            - cd 1-terraform-apply
+            - artifact pull workflow .terraform
+            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate
+            - terraform destroy -auto-approve
+
+  # ─── Exercise 2: EC2 Instance ──────────────────────────────────────────────
+
+  - name: "2 - Deploy EC2"
+    dependencies: ["1 - Initialize"]
+    task:
+      jobs:
+        - name: Apply
+          commands:
+            - cd 2-terraform-ec2
+            - artifact pull workflow .terraform
+            - artifact pull workflow .terraform.lock.hcl
+            - terraform validate
+            - terraform apply -auto-approve
+            - artifact push workflow terraform.tfstate --destination ec2-terraform.tfstate
+
+  - name: "2 - Destroy EC2"
+    dependencies: ["2 - Deploy EC2"]
+    task:
+      jobs:
+        - name: Destroy
+          commands:
+            - cd 2-terraform-ec2
+            - artifact pull workflow .terraform
+            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow ec2-terraform.tfstate --destination terraform.tfstate
+            - terraform destroy -auto-approve
+
+  # ─── Exercise 3: DynamoDB Table ────────────────────────────────────────────
+
+  - name: "3 - Deploy DynamoDB"
+    dependencies: ["1 - Initialize"]
+    task:
+      jobs:
+        - name: Apply
+          commands:
+            - cd 3-terraform-dynamodb
+            - artifact pull workflow .terraform
+            - artifact pull workflow .terraform.lock.hcl
+            - terraform validate
+            - terraform apply -auto-approve
+            - artifact push workflow terraform.tfstate --destination ddb-terraform.tfstate
+
+  - name: "3 - Interact DynamoDB"
+    dependencies: ["3 - Deploy DynamoDB"]
+    task:
+      jobs:
+        - name: DynamoDB Operations
+          commands:
+            - cd 3-terraform-dynamodb
+            - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate
+            - aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb list-tables
+            - aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb describe-table --table-name fbaba-devops-training-table
+            - |
+              aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb put-item \
+                --table-name fbaba-devops-training-table \
+                --item '{"user_id": {"S": "u1"}, "name": {"S": "Alice"}, "email": {"S": "alice@example.com"}}'
+            - aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb scan --table-name fbaba-devops-training-table
+
+  - name: "3 - Destroy DynamoDB"
+    dependencies: ["3 - Interact DynamoDB"]
+    task:
+      jobs:
+        - name: Destroy
+          commands:
+            - cd 3-terraform-dynamodb
+            - artifact pull workflow .terraform
+            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate
+            - terraform destroy -auto-approve
