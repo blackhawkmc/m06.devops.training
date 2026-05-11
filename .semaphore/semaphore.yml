@@ -56,7 +56,7 @@ blocks:
             - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate --force
             - |
               for attempt in $(seq 1 20); do
-                if curl -fsS "$LOCALSTACK_ENDPOINT/" > /dev/null; then
+                if curl -sS --connect-timeout 2 "$LOCALSTACK_ENDPOINT/" > /dev/null 2>&1; then
                   break
                 fi
                 if [[ "$attempt" -eq 20 ]]; then
@@ -123,6 +123,22 @@ blocks:
             - artifact pull workflow .terraform --force
             - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
+            - |
+              # Clean up stale table from previous runs when state was lost.
+              if aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb describe-table --table-name fbaba-devops-training-table > /dev/null 2>&1; then
+                echo "Found existing table fbaba-devops-training-table, deleting before terraform apply"
+                aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb delete-table --table-name fbaba-devops-training-table
+                for attempt in $(seq 1 30); do
+                  if ! aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb describe-table --table-name fbaba-devops-training-table > /dev/null 2>&1; then
+                    break
+                  fi
+                  if [[ "$attempt" -eq 30 ]]; then
+                    echo "Table fbaba-devops-training-table still exists after delete attempts"
+                    exit 1
+                  fi
+                  sleep 2
+                done
+              fi
             - terraform validate
             - terraform apply -auto-approve
             - artifact push workflow terraform.tfstate --destination ddb-terraform.tfstate
@@ -137,7 +153,7 @@ blocks:
             - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate --force
             - |
               for attempt in $(seq 1 20); do
-                if curl -fsS "$LOCALSTACK_ENDPOINT/" > /dev/null; then
+                if curl -sS --connect-timeout 2 "$LOCALSTACK_ENDPOINT/" > /dev/null 2>&1; then
                   break
                 fi
                 if [[ "$attempt" -eq 20 ]]; then
