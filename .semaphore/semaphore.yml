@@ -125,7 +125,12 @@ blocks:
                 fi
               fi
             - terraform validate
-            - terraform apply -auto-approve
+            - |
+              if ! terraform apply -auto-approve; then
+                echo "terraform apply failed, trying import-and-retry for existing table"
+                terraform import aws_dynamodb_table.example fbaba-devops-training-table || true
+                terraform apply -auto-approve
+              fi
             - artifact push workflow terraform.tfstate --destination ddb-terraform.tfstate
 
   - name: "3 - Interact DynamoDB"
