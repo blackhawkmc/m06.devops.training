@@ -56,11 +56,11 @@ blocks:
             - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate --force
             - |
               for attempt in $(seq 1 20); do
-                if curl -sS --connect-timeout 2 "$LOCALSTACK_ENDPOINT/" > /dev/null 2>&1; then
+                if aws --endpoint-url="$LOCALSTACK_ENDPOINT" s3 ls > /dev/null 2>&1; then
                   break
                 fi
                 if [[ "$attempt" -eq 20 ]]; then
-                  echo "LocalStack endpoint unreachable: $LOCALSTACK_ENDPOINT"
+                  echo "S3 endpoint/API unreachable at: $LOCALSTACK_ENDPOINT"
                   exit 1
                 fi
                 sleep 2
@@ -125,11 +125,11 @@ blocks:
             - chmod -R +x .terraform/
             - |
               for attempt in $(seq 1 20); do
-                if curl -sS --connect-timeout 2 "$LOCALSTACK_ENDPOINT/" > /dev/null 2>&1; then
+                if aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb list-tables > /dev/null 2>&1; then
                   break
                 fi
                 if [[ "$attempt" -eq 20 ]]; then
-                  echo "LocalStack endpoint unreachable: $LOCALSTACK_ENDPOINT"
+                  echo "DynamoDB endpoint/API unreachable at: $LOCALSTACK_ENDPOINT"
                   exit 1
                 fi
                 sleep 2
@@ -156,11 +156,11 @@ blocks:
             - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate --force
             - |
               for attempt in $(seq 1 20); do
-                if curl -sS --connect-timeout 2 "$LOCALSTACK_ENDPOINT/" > /dev/null 2>&1; then
+                if aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb list-tables > /dev/null 2>&1; then
                   break
                 fi
                 if [[ "$attempt" -eq 20 ]]; then
-                  echo "LocalStack endpoint unreachable: $LOCALSTACK_ENDPOINT"
+                  echo "DynamoDB endpoint/API unreachable at: $LOCALSTACK_ENDPOINT"
                   exit 1
                 fi
                 sleep 2
