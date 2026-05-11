@@ -12,6 +12,9 @@ global_job_config:
   prologue:
     commands:
       - checkout
+      - export LOCALSTACK_ENDPOINT=http://devops.tomfern.com:31566
+      - export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - export AWS_ENDPOINT_URL=$LOCALSTACK_ENDPOINT
       - export TF_VAR_AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
       - export TF_VAR_AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
 
@@ -36,8 +39,8 @@ blocks:
         - name: Apply
           commands:
             - cd 1-terraform-apply
-            - artifact pull workflow .terraform
-            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow .terraform --force
+            - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
             - terraform validate
             - terraform apply -auto-approve
@@ -50,10 +53,21 @@ blocks:
         - name: S3 Operations
           commands:
             - cd 1-terraform-apply
-            - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate
-            - aws --endpoint-url=http://devops.tomfern.com:31566 s3 cp README.md s3://fbaba-test-bucket/
-            - aws --endpoint-url=http://devops.tomfern.com:31566 s3 ls s3://fbaba-test-bucket
-            - aws --endpoint-url=http://devops.tomfern.com:31566 s3 rm s3://fbaba-test-bucket/README.md
+            - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate --force
+            - |
+              for attempt in $(seq 1 20); do
+                if curl -fsS "$LOCALSTACK_ENDPOINT/" > /dev/null; then
+                  break
+                fi
+                if [[ "$attempt" -eq 20 ]]; then
+                  echo "LocalStack endpoint unreachable: $LOCALSTACK_ENDPOINT"
+                  exit 1
+                fi
+                sleep 2
+              done
+            - aws --endpoint-url="$LOCALSTACK_ENDPOINT" s3 cp README.md s3://fbaba-test-bucket/
+            - aws --endpoint-url="$LOCALSTACK_ENDPOINT" s3 ls s3://fbaba-test-bucket
+            - aws --endpoint-url="$LOCALSTACK_ENDPOINT" s3 rm s3://fbaba-test-bucket/README.md
 
   - name: "1 - Destroy S3"
     dependencies: ["1 - Use Bucket"]
@@ -62,10 +76,10 @@ blocks:
         - name: Destroy
           commands:
             - cd 1-terraform-apply
-            - artifact pull workflow .terraform
-            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow .terraform --force
+            - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
-            - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate
+            - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate --force
             - terraform destroy -auto-approve
 
   # ─── Exercise 2: EC2 Instance ──────────────────────────────────────────────
@@ -77,8 +91,8 @@ blocks:
         - name: Apply
           commands:
             - cd 2-terraform-ec2
-            - artifact pull workflow .terraform
-            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow .terraform --force
+            - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
             - terraform validate
             - terraform apply -auto-approve
@@ -91,10 +105,10 @@ blocks:
         - name: Destroy
           commands:
             - cd 2-terraform-ec2
-            - artifact pull workflow .terraform
-            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow .terraform --force
+            - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
-            - artifact pull workflow ec2-terraform.tfstate --destination terraform.tfstate
+            - artifact pull workflow ec2-terraform.tfstate --destination terraform.tfstate --force
             - terraform destroy -auto-approve
 
   # ─── Exercise 3: DynamoDB Table ────────────────────────────────────────────
@@ -106,8 +120,8 @@ blocks:
         - name: Apply
           commands:
             - cd 3-terraform-dynamodb
-            - artifact pull workflow .terraform
-            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow .terraform --force
+            - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
             - terraform validate
             - terraform apply -auto-approve
@@ -120,14 +134,25 @@ blocks:
         - name: DynamoDB Operations
           commands:
             - cd 3-terraform-dynamodb
-            - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate
-            - aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb list-tables
-            - aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb describe-table --table-name fbaba-devops-training-table
+            - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate --force
             - |
-              aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb put-item \
+              for attempt in $(seq 1 20); do
+                if curl -fsS "$LOCALSTACK_ENDPOINT/" > /dev/null; then
+                  break
+                fi
+                if [[ "$attempt" -eq 20 ]]; then
+                  echo "LocalStack endpoint unreachable: $LOCALSTACK_ENDPOINT"
+                  exit 1
+                fi
+                sleep 2
+              done
+            - aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb list-tables
+            - aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb describe-table --table-name fbaba-devops-training-table
+            - |
+              aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb put-item \
                 --table-name fbaba-devops-training-table \
                 --item '{"user_id": {"S": "u1"}, "name": {"S": "Alice"}, "email": {"S": "alice@example.com"}}'
-            - aws --endpoint-url=http://devops.tomfern.com:31566 dynamodb scan --table-name fbaba-devops-training-table
+            - aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb scan --table-name fbaba-devops-training-table
 
   - name: "3 - Destroy DynamoDB"
     dependencies: ["3 - Interact DynamoDB"]
@@ -136,8 +161,8 @@ blocks:
         - name: Destroy
           commands:
             - cd 3-terraform-dynamodb
-            - artifact pull workflow .terraform
-            - artifact pull workflow .terraform.lock.hcl
+            - artifact pull workflow .terraform --force
+            - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
-            - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate
+            - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate --force
             - terraform destroy -auto-approve
