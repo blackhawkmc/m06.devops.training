@@ -38,6 +38,7 @@ blocks:
             - cd 1-terraform-apply
             - artifact pull workflow .terraform
             - artifact pull workflow .terraform.lock.hcl
+            - chmod -R +x .terraform/
             - terraform validate
             - terraform apply -auto-approve
             - artifact push workflow terraform.tfstate --destination s3-terraform.tfstate
@@ -63,6 +64,7 @@ blocks:
             - cd 1-terraform-apply
             - artifact pull workflow .terraform
             - artifact pull workflow .terraform.lock.hcl
+            - chmod -R +x .terraform/
             - artifact pull workflow s3-terraform.tfstate --destination terraform.tfstate
             - terraform destroy -auto-approve
 
@@ -77,6 +79,7 @@ blocks:
             - cd 2-terraform-ec2
             - artifact pull workflow .terraform
             - artifact pull workflow .terraform.lock.hcl
+            - chmod -R +x .terraform/
             - terraform validate
             - terraform apply -auto-approve
             - artifact push workflow terraform.tfstate --destination ec2-terraform.tfstate
@@ -90,6 +93,7 @@ blocks:
             - cd 2-terraform-ec2
             - artifact pull workflow .terraform
             - artifact pull workflow .terraform.lock.hcl
+            - chmod -R +x .terraform/
             - artifact pull workflow ec2-terraform.tfstate --destination terraform.tfstate
             - terraform destroy -auto-approve
 
@@ -104,6 +108,7 @@ blocks:
             - cd 3-terraform-dynamodb
             - artifact pull workflow .terraform
             - artifact pull workflow .terraform.lock.hcl
+            - chmod -R +x .terraform/
             - terraform validate
             - terraform apply -auto-approve
             - artifact push workflow terraform.tfstate --destination ddb-terraform.tfstate
@@ -133,5 +138,6 @@ blocks:
             - cd 3-terraform-dynamodb
             - artifact pull workflow .terraform
             - artifact pull workflow .terraform.lock.hcl
+            - chmod -R +x .terraform/
             - artifact pull workflow ddb-terraform.tfstate --destination terraform.tfstate
             - terraform destroy -auto-approve
