@@ -124,20 +124,23 @@ blocks:
             - artifact pull workflow .terraform.lock.hcl --force
             - chmod -R +x .terraform/
             - |
-              # Clean up stale table from previous runs when state was lost.
+              for attempt in $(seq 1 20); do
+                if curl -sS --connect-timeout 2 "$LOCALSTACK_ENDPOINT/" > /dev/null 2>&1; then
+                  break
+                fi
+                if [[ "$attempt" -eq 20 ]]; then
+                  echo "LocalStack endpoint unreachable: $LOCALSTACK_ENDPOINT"
+                  exit 1
+                fi
+                sleep 2
+              done
+            - |
+              # If the table exists already, import it into state instead of trying to recreate it.
               if aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb describe-table --table-name fbaba-devops-training-table > /dev/null 2>&1; then
-                echo "Found existing table fbaba-devops-training-table, deleting before terraform apply"
-                aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb delete-table --table-name fbaba-devops-training-table
-                for attempt in $(seq 1 30); do
-                  if ! aws --endpoint-url="$LOCALSTACK_ENDPOINT" dynamodb describe-table --table-name fbaba-devops-training-table > /dev/null 2>&1; then
-                    break
-                  fi
-                  if [[ "$attempt" -eq 30 ]]; then
-                    echo "Table fbaba-devops-training-table still exists after delete attempts"
-                    exit 1
-                  fi
-                  sleep 2
-                done
+                if ! terraform state show aws_dynamodb_table.example > /dev/null 2>&1; then
+                  echo "Found existing table fbaba-devops-training-table, importing into Terraform state"
+                  terraform import aws_dynamodb_table.example fbaba-devops-training-table
+                fi
               fi
             - terraform validate
             - terraform apply -auto-approve
